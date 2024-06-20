@@ -22,6 +22,7 @@
 #include "api/HardwareCAN.h"
 
 #include  <tuple>
+#include  <array>
 
 #include "bsp_api.h"
 
@@ -75,11 +76,14 @@ public:
 
 
 private:
+  int nextAvailableTxBuffer();
+
   int const _can_tx_pin;
   int const _can_rx_pin;
   bool _is_error;
   int _err_code;
   SyncCanMsgRingbuffer _can_rx_buf;
+  std::array<bool, 16> _can_tx_bufs; // 16 Tx "Buffers"
 
   canfd_instance_ctrl_t _canfd_ctrl;
   can_bit_timing_cfg_t _canfd_bit_timing_cfg;

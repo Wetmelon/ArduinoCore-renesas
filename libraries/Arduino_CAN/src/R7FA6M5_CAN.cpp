@@ -46,6 +46,7 @@ R7FA6M5_CAN::R7FA6M5_CAN(int const can_tx_pin, int const can_rx_pin)
 , _is_error{false}
 , _err_code{0}
 , _can_rx_buf{}
+, _can_tx_bufs{}
 , _canfd_bit_timing_cfg{}
 , _canfd_afl{}
 , _canfd_global_cfg
@@ -207,7 +208,7 @@ int R7FA6M5_CAN::write(CanMsg const & msg)
 
   memcpy(can_msg.data, msg.data, can_msg.data_length_code);
 
-  if(fsp_err_t const rc = R_CANFD_Write(&_canfd_ctrl, 0, &can_msg); rc != FSP_SUCCESS)
+  if(fsp_err_t const rc = R_CANFD_Write(&_canfd_ctrl, (uint32_t)nextAvailableTxBuffer(), &can_msg); rc != FSP_SUCCESS)
     return -rc;
 
   return 1;
@@ -248,7 +249,12 @@ void R7FA6M5_CAN::onCanFDCallback(can_callback_args_t * p_args)
 {
   switch (p_args->event)
   {
-    case CAN_EVENT_TX_COMPLETE: break;
+    case CAN_EVENT_TX_COMPLETE:
+    {
+      uint32_t const buffer = p_args->buffer;
+      if(buffer < 8) { _can_tx_bufs[buffer] = false; }
+      else if(buffer >= 32 && buffer < 40) { _can_tx_bufs[buffer - 24UL] = false; } // Buffers 32-39 are encoded as 8-15 in the array
+    } break;
     case CAN_EVENT_RX_COMPLETE: // Currently driver don't support this. This is unreachable code for now. This is so true.
     {
       /* Extract the received CAN message. */
@@ -283,6 +289,22 @@ void R7FA6M5_CAN::onCanFDCallback(can_callback_args_t * p_args)
 /**************************************************************************************
  * PRIVATE MEMBER FUNCTIONS
  **************************************************************************************/
+
+int R7FA6M5_CAN::nextAvailableTxBuffer() {
+  // Linear search for first available buffer
+  for(size_t i = 0; i < _can_tx_bufs.size(); ++i)
+  {
+    if(!_can_tx_bufs[i])
+    {
+      _can_tx_bufs[i] = true;
+
+      if(i < 8) { return i; }
+      else { return (i + 24UL); } // Buffers 8-15 are actually 32-39 in FSP
+    }
+  }
+
+  return -1;
+}
 
 std::tuple<bool, int> R7FA6M5_CAN::cfg_pins(int const max_index, int const can_tx_pin, int const can_rx_pin)
 {
