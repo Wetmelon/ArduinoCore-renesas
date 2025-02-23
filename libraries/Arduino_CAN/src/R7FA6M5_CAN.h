@@ -76,7 +76,7 @@ public:
 
 
 private:
-  int nextAvailableTxBuffer();
+  uint32_t nextAvailableTxBuffer();
 
   int const _can_tx_pin;
   int const _can_rx_pin;
